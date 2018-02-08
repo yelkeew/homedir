@@ -1,0 +1,46 @@
+# -*- tab-width:4; indent-tabs-mode:t; mode:conf; -*-
+
+[user]
+    name = Dan Weekley
+    email = weekley@pobox.com
+
+[color]
+    branch = auto
+    diff = auto
+    log = auto
+    status = auto
+
+[color "diff"]
+    old = red
+    new = green
+    whitespace = magenta
+    frag = blue
+    meta = white
+
+[color "status"]
+    added = red
+    changed = blue
+    untracked = green
+
+[core]
+    pager = less -iFRSX
+    repositoryformatversion = 0
+    filemode = true
+    bare = false
+    logallrefupdates = true
+    editor = /home/dw/bin/ec
+
+[difftool "kdiff3"]
+    tool = /usr/bin/kdiff3
+
+[difftool "ediff"]
+    cmd = emacsclient -s $HOME/emacs/server-socket-dir/server --eval \"(ediff-files \\\"$LOCAL\\\" \\\"$REMOTE\\\")\"
+
+[difftool "diffc"]
+    cmd = echo "--- $REMOTE" && diffc "$LOCAL" "$REMOTE"
+
+[difftool "xxdiff"]
+    cmd = xxdiff "$LOCAL" "$REMOTE"
+
+[reviewboard]
+    url = http://rb.aft-2.aft.net

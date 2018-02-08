@@ -1,0 +1,13 @@
+# -*- mode:rpm-spec; -*-
+%_topdir    %(echo $HOME)/rpmbuild/
+%_builddir  %{_topdir}/BUILD
+%_rpmdir    %{_topdir}/RPMS
+%_sourcedir %{_topdir}/SOURCES
+%_specdir   %{_topdir}/SPECS
+%_srcrpmdir %{_topdir}/SRPMS
+
+%packager   Dan Weekley <weekley@pobox.com>
+%dist       %(echo ${RPMDIST:-'.el6.aft'})
+
+# uncomment the following to build apr_memcache src rpm
+#%_default_patch_flags	-s --merge

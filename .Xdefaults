@@ -1,0 +1,67 @@
+URxvt*transparent: false
+URxvt*saveLines: 99999
+URxvt*foreground: #999999
+URxvt*background: #333A3F
+URxvt*font: xft:DejaVu Sans Mono:pixelsize=11:antialias=true:hinting=true
+URxvt*boldFont: xft:DejaVu Sans Mono:bold:pixelsize=11:antialias=true:hinting=true
+URxvt*scrollBar: false
+URxvt*geometry: 170x75
+
+! from: http://r.untroubled.be/docs/urxvt/urxvt_keys_vim.html
+URxvt.keysym.M-Up:      \033[1;3A
+URxvt.keysym.M-Down:    \033[1;3B
+URxvt.keysym.M-Right:   \033[1;3C
+URxvt.keysym.M-Left:    \033[1;3D
+URxvt.keysym.M-Prior:   \033[5;3~
+URxvt.keysym.M-Next:    \033[6;3~
+URxvt.keysym.M-End:     \033[1;3F
+URxvt.keysym.M-Home:    \033[1;3H
+
+URxvt.keysym.C-Up:      \033[1;5A
+URxvt.keysym.C-Down:    \033[1;5B
+URxvt.keysym.C-Right:   \033[1;5C
+URxvt.keysym.C-Left:    \033[1;5D
+URxvt.keysym.C-Prior:   \033[5;5~
+URxvt.keysym.C-Next:    \033[6;5~
+URxvt.keysym.C-End:     \033[1;5F
+URxvt.keysym.C-Home:    \033[1;5H
+
+
+XTerm*foreground: grey75
+XTerm*background: black
+
+!
+! COLORS
+!
+
+! 0/8  = black
+! 1/9  = red
+! 2/10 = Green
+! 3/11 = Yellow
+! 4/12 = Blue
+! 5/13 = Magenta
+! 6/14 = Cyan
+! 7/15 = White
+
+*color1: #FF5454
+*color4: #1C94D5
+*color7: #999999
+*color9: #FF5454
+*color12: #1C94D5
+*color15: #999999
+
+
+!URxvt*tintColor: DimGray
+!URxvt*font: xft:Bitstream Vera Sans Mono:pixelsize=12:antialias=true:hinting=true
+!URxvt*boldFont: xft:Bitstream Vera Sans Mono:bold:pixelsize=12:antialias=true:hinting=true
+!URxvt*font: xft:Liberation Mono:pixelsize=13:antialias=true:hinting=true
+!URxvt*boldFont: xft:Liberation Mono:bold:pixelsize=13:antialias=true:hinting=true
+!URxvt*font: xft:terminus:pixelsize=15
+!URxvt*boldFont: xft:terminus:bold:pixelsize=15
+!URxvt*font:-*-courier-medium-r-normal-*-14-*-*-*-*-*-iso8859-1
+!URxvt*boldFont:-*-courier-bold-r-normal-*-14-*-*-*-*-*-iso8859-1
+!URxvt*color4: RoyalBlue
+!URxvt*color12: RoyalBlue
+!URxvt*scrollBar_right: false
+!URxvt*scrollstyle: rxvt
+

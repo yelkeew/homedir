@@ -1,0 +1,1300 @@
+# -*- mode:sh; -*-
+##########################################################################################
+#
+#
+#                                    Bash functions
+#
+#
+##########################################################################################
+
+
+##########################################################################################
+#                                     FILESYSTEM
+##########################################################################################
+
+# Restore ownership of a directory tree
+# `chown` recursively for the currently logged in user
+cho ()
+{
+    local DIR=${1-"."}
+    local NEW_USER=${2-"${USER}"}
+    sudo chown -R $(id -n -u ${NEW_USER}):$(id -n -g ${NEW_USER}) ${DIR}
+}
+
+
+# change permissions for a directory tree
+# `chmod` recursively for the optionally specified directory
+chm ()
+{
+    local PERM=$1
+    if [ -z ${PERM} ]; then
+        echo "Change permissions for a directory tree"
+        echo "chm <perm> [dir]"
+        return 1
+    fi
+
+    local DIR=${2-"."}
+    chmod -R ${PERM} ${DIR}
+}
+
+
+# Look in "C"-language files for a specified string
+lc ()
+{
+    local STRING=$1
+    local LC_DIR=${2-"."}
+    # look for the string, removing leading whitespace from found lines
+    # sed regex matches "<line #>:<whitespace>"
+    # 2nd grep highlights matches
+    find  ${LC_DIR} -type f -name "*.?pp" -o -name "*.[cChH]" | \
+        xargs grep -n -e "${STRING}" | \
+        sed  's/\([0-9]\+:\)[ \t]*/\1 /' | \
+        grep --color --color -e "${STRING}"
+}
+
+
+# View the conents of a script; find script location using `which'
+# i.e., (c)at (w)hich ...
+cw ()
+{
+    local DEFAULT_CW_VIEWER="cat"
+    local FILE="$1"
+    if [ -z ${FILE} ]; then
+        echo "View the contents of a file using the specified viewer application"
+        echo "File is located in PATH using \`which\`"
+        echo "Viewer application defaults to ${DEFAULT_CW_VIEWER}"
+        echo "cw <file> [viewer]"
+        return 1
+    fi
+
+    local FILE_PATH=$(/usr/bin/which ${FILE} 2> /dev/null)
+    local RC="$?"
+    if [ "0" -ne "${RC}" ]; then
+        echo "Couldn't find ${FILE} in PATH"
+        echo "PATH = ${PATH}"
+        return 2
+    fi
+    local VIEWER=${2-${DEFAULT_CW_VIEWER}}
+    ${VIEWER} ${FILE_PATH}
+}
+
+
+# Add a directory to the path if not already present
+pathmunge ()
+{
+    if ! echo ${PATH} | /bin/egrep -q "(^|:)$1($|:)" ; then
+        if [ "$2" = "after" ] ; then
+            PATH=${PATH}:$1
+        else
+            PATH=$1:${PATH}
+        fi
+    fi
+}
+
+# Shortcuts for common find operations: find file/symlink/dir
+ff ()
+{
+    if [ "-h" = "$1" ]; then
+        echo "Find files matching a regex in the specified directory"
+        echo "Usage: ff [-i] <dir> <fname-regex>"
+        return 1
+    else
+        if [ "-i" = "$1" ]; then
+            NAME_OPT="-iname"
+            shift
+        else
+            NAME_OPT="-name"
+        fi
+    fi
+    local DIR=${1-"."}
+    local FILE=${2-"*"}
+    local RESULTS="${HOME}/tmp/find-results.txt"
+
+    rm -rf ${RESULTS} ${RESULTS}.tmp
+    find "${DIR}" -type f "${NAME_OPT}" "${FILE}" >> ${RESULTS}.tmp
+    nl ${RESULTS}.tmp > ${RESULTS}
+    rm -rf ${RESULTS}.tmp
+    cat ${RESULTS}
+}
+
+
+fl ()
+{
+    if [ "-h" = "$1" ]; then
+        echo "Find symlinks matching a regex in the specified directory"
+        echo "Usage: fl [-i] <dir> <symlink-regex>"
+        return 0
+    else
+        if [ "-i" = "$1" ]; then
+            NAME_OPT="-iname"
+            shift
+        else
+            NAME_OPT="-name"
+        fi
+    fi
+    local DIR=${1-"."}
+    local LINK=${2-"*"}
+    find "${DIR}" -type l "${NAME_OPT}" "${LINK}"
+}
+
+
+fd ()
+{
+    if [ "-h" = "$1" ]; then
+        echo "Find sub-dirs matching a regex in the specified directory"
+        echo "Usage: fd [-i] <dir> <dirname-regex>"
+        return 0
+    else
+        if [ "-i" = "$1" ]; then
+            NAME_OPT="-iname"
+            shift
+        else
+            NAME_OPT="-name"
+        fi
+    fi
+    local DIR=${1-"."}
+    local DIR_FIND=${2-"*"}
+    find "${DIR}" -type d "${NAME_OPT}" "${DIR_FIND}"
+}
+
+
+# Find file & grep
+ffg ()
+{
+    if [ $# -lt 3 ]; then
+        echo "Grep files matching a regex in the specified directory"
+        echo "Usage: ffg [<grep-opts>] <dir> <fname-regex> <grep-regex>"
+        return 1
+    else
+        unset FF_GREP_OPTS
+        if [[ "$1" =~ ^-[a-zA-Z]* ]]; then
+            FF_GREP_OPTS="$1"
+            shift
+        fi
+        local DIR="$1"
+        local FILENAME="$2"
+        local REGEX="$3"
+        local GREP="grep -Hn"
+        local RESULTS="${HOME}/tmp/find-results.txt"
+
+        if [ -n "$FF_GREP_OPTS" ]; then
+            GREP="${GREP} ${FF_GREP_OPTS}"
+        fi
+        rm -rf ${RESULTS} ${RESULTS}.tmp
+        find "${DIR}" -type f -name "${FILENAME}" -print0 | \
+            while read -d $'\0' f; do ${GREP} -e "${REGEX}" "${f}" >> ${RESULTS}.tmp; done
+        sed -i -e '/Binary file .* matches/d' ${RESULTS}.tmp
+        nl ${RESULTS}.tmp > ${RESULTS}
+        rm -rf ${RESULTS}.tmp
+        # Run `grep` again to get colorized output
+        grep "${REGEX}" ${RESULTS}
+    fi
+}
+
+
+# Find file & grep, case insensitive
+ffgi ()
+{
+    ffg -i "$1" "$2" "$3"
+}
+
+
+# Mount all filesystems on a device; use /dev/sd[x], not /dev/sd[x]1
+mt ()
+{
+    local DEVICE="/dev/$1"
+
+    if [ -z "$1" ]; then
+        mount
+        return 0
+    else
+        if [ -z "${DEVICE}" -o ! -b "${DEVICE}" ]; then
+            echo "Mount all filesystems on a device node"
+            echo "Specify only basename of device node, e.g., \"sdb\", not \"/dev/sdb\""
+            echo "Usage: mt <device-node>"
+            return 1
+        fi
+    fi
+
+    PART_HDR_RE="Number  Start.*$"
+    PART_TMP_FILE=/tmp/mt.$$
+    sudo /sbin/parted -s ${DEVICE} print | \
+        grep -A 16 -e "${PART_HDR_RE}" | \
+        grep -v -e "${PART_HDR_RE}" | \
+        grep -v -e "^$" > ${PART_TMP_FILE}
+
+    cat ${PART_TMP_FILE} | while read PINFO; do
+        PNUM=$(echo ${PINFO} | cut -f1 -d ' ')
+        PTYPE=$(echo ${PINFO} | cut -f6 -d ' ')
+        PDEV=${DEVICE}${PNUM}
+        if [ -z "${PTYPE}" ]; then
+            continue
+        fi
+        case "$PTYPE" in
+            "fat32"|"fat16")
+                MOUNT_TYPE="vfat"
+                MOUNT_OPTS="rw,nosuid,nodev,noatime,uid=$(id -u),gid=$(id -g),shortname=lower"
+                # `mlabel' outputs: " Volume label is <label>    "
+                # Note leading space and repeated trailing spaces
+                LABEL=$(sudo /usr/bin/mlabel -i ${PDEV} -s :: | awk '{print $4}')
+                ;;
+            "ext2")
+                MOUNT_TYPE="ext2"
+                MOUNT_OPTS="rw,nosuid,nodev,sync"
+                LABEL=$(sudo /sbin/e2label ${PDEV})
+                ;;
+            "*")
+                echo "Unknown partition type \"${PTYPE}\""
+                continue
+                ;;
+        esac
+
+        if [ -z ${LABEL} ]; then
+            LABEL="$1${PNUM}"
+        fi
+
+        PDIR=/media/${LABEL}
+        echo "${PDEV} on ${PDIR} type ${MOUNT_TYPE} (${MOUNT_OPTS})"
+        sudo mkdir -p ${PDIR}
+        sudo mount -t ${MOUNT_TYPE} -o "${MOUNT_OPTS}" ${PDEV} ${PDIR}
+        RC=$?
+        if [ 0 -ne ${RC} ]; then
+            echo "Failed to mount ${PDEV} (${LABEL}) as ${MOUNT_TYPE}"
+            continue
+        fi
+    done
+    rm ${PART_TMP_FILE}
+
+    return 0
+}
+
+
+# Unmount all filesystems on a device
+um ()
+{
+
+    if [ -z "$1" ]; then
+        echo "Unmount all filesystems on a device node"
+        echo "Specify only basename of device node, e.g., \"sdb\", or \"/dev/sdb\""
+        echo "Usage: um <device-node>"
+        return 0
+    fi
+
+    local DEVICE
+
+    if [[ "$1" =~ "/dev" ]]; then
+        DEVICE="$1"
+    else
+        DEVICE="/dev/$1"
+    fi
+
+    if [ ! -b "${DEVICE}" ]; then
+        echo "ERROR: ${DEVICE} not a valid block device"
+        return 1
+    fi
+
+    # Kill all KDE Konqueror windows showing mount-point.  Do this before
+    # checking for a valid mount in case windows were opened as the result
+    # of running a command-line script, e.g., sdformat.
+    if [ -n "${DEVICE}" ]; then
+        for p in $(/sbin/pidof konqueror); do
+            if [ -n "$(ps -Fp ${p} | grep ${1})" ]; then
+                kill -1 ${p}
+            fi
+        done
+    fi
+
+    local MOUNTED=$(mount | grep ${DEVICE} | cut -d ' ' -f1)
+    if [ -n "${MOUNTED}" ]; then
+        for m in $MOUNTED; do
+            echo "Unmounting ${m}"
+            sudo umount ${m}
+        done
+    fi
+}
+
+# # Unmount all filesystems on a device, use /dev/sd[x], not dev/sd[x]1
+# um ()
+# {
+#     local DEVICE="/dev/$1"
+#
+#     # Kill all KDE Konqueror windows showing mount-point.  Do this before
+#     # checking for a valid mount in case windows were opened as the result
+#     # of running a command-line script, e.g., sdformat.
+#     if [ -n "${DEVICE}" ]; then
+#         for p in $(/sbin/pidof konqueror); do
+#             if [ -n "$(ps -Fp ${p} | grep ${1})" ]; then
+#                 kill -1 ${p}
+#             fi
+#     done
+#     fi
+#
+#     if [ -z "${DEVICE}" -o ! -b "${DEVICE}" ]; then
+#         echo "Unmount all filesystems on a device node"
+#         echo "Specify only basename of device node, e.g., \"sdb\", not \"/dev/sdb\""
+#         echo "Usage: um <device-node>"
+#         return 0
+#     fi
+#
+#     local MOUNTED=$(mount | grep ${DEVICE} | cut -d ' ' -f1)
+#     if [ -n "${MOUNTED}" ]; then
+#         for m in $MOUNTED; do
+#             echo "Unmounting ${m}"
+#             sudo umount ${m}
+#         done
+#     fi
+# }
+
+# List all partitions on a device.  This is a function rather than
+# a simple alias b/c the alias adds a space between the alias name
+# and the rest of the command.  This groups the argument with the
+# rest of the path before executing the command.
+fdl ()
+{
+    local DEVICE="/dev/$1"
+    if [ -z "${DEVICE}" -o ! -b "${DEVICE}" ]; then
+        echo "List all partitions on a device node"
+        echo "Specify only basename of device node, e.g., \"sdb\", not \"/dev/sda\""
+        echo "Usage: fdl <device-node>"
+        return 0
+    fi
+    sudo /sbin/fdisk -l ${DEVICE}
+}
+
+
+# Look at /dev/sd* devices to see which ones are present/mounted
+sd ()
+{
+    local SDLIST="$(ls /dev/sd*)"
+    #local MOUNTLIST="$(mount)"
+
+    for d in "${SDLIST}"; do
+        echo "${d}"
+        #echo " - $(echo ${MOUNTLIST} | grep -e "^${d} on")"
+        #local MP=$(echo ${MOUNTLIST} | grep -e "^${d} on" | cut -d ' ' -f3)
+        #if [ -n ${MP} ]; then
+        #    echo ", mounted as ${MP}"
+        #else
+        #    echo ""
+        #fi
+    done
+}
+
+
+# Bash commonly supplies a "which" alias.  If present, remove this
+# alias so we can define our own "which" as a function.
+if [ "$(type -t which)" == "alias" ]; then
+    unalias which
+fi
+
+# Augment `which' by looking in common system directories not
+# normally in the user's path
+which ()
+{
+    local APP="$1"
+
+    if [ -z "${APP}" ]; then
+        echo "Find a file in \$PATH, or common non-path directories"
+        echo "Usage: which <file>"
+        return 1
+    fi
+
+    local WHICH="/usr/bin/which --tty-only --read-alias --read-functions \
+        --show-dot --show-tilde"
+    local FULL_PATH=$((alias; declare -f) | ${WHICH} ${APP} 2> /dev/null)
+    local RC=$?
+    # Not sure why, but sometimes get RC = 0, and empty FULL_PATH
+
+    local TYPE=$(type -t ${APP})
+    if [ 0 -eq ${RC} ]; then
+        if [ "alias" = "${TYPE}" -o "function" = "${TYPE}" ]; then
+            # Use Bash-builtin `type' for pretty output
+            echo "$(type ${APP})"
+            return 0
+        elif [ -n "${FULL_PATH}" -a -f "${FULL_PATH}" ]; then
+            # Found it -- regular file in $PATH
+            echo "${FULL_PATH}"
+            return 0
+        fi
+    fi
+
+    # Wasn't found in aliases, functions, or $PATH; look at shell builtins
+    if [ "builtin" = "${TYPE}" ]; then
+        echo "${APP} is a shell builtin"
+        return 0
+    fi
+
+    # Still not found; finally, look in non-path dirs
+    local NON_PATH_DIRS="
+        /sbin
+        /usr/bin
+        /usr/sbin
+        /etc"
+
+    for d in ${NON_PATH_DIRS}; do
+        APP_PATH="${d}/${APP}"
+        if [ -e ${APP_PATH} ]; then
+            local SUFFIX=""
+            if [ -d ${APP_PATH} ]; then  # Add trailing slash for directories
+                SUFFIX="/"
+            fi
+            printf "%s%s\n" "${APP_PATH}" "${SUFFIX}"
+            return 0
+        fi
+    done
+
+    # Not found anywhere, giving up
+    echo "which(): couldn't find \"${APP}\""
+    return 1
+}
+
+
+# Go to the previously visited dirctory, $OLDPWD
+- ()
+{
+    cd - 2>&1 > /dev/null
+}
+
+
+# Go up a specified number of directories
+# Argument is either a number or a partial dir-tree above the current dir
+.. ()
+{
+    local CURDIR=$(pwd)
+    local ERR_STR=""
+    local TRAILING=""
+    local NEW_SUB_DIR=""
+
+    if [ -z "$1" ]; then
+        cd ..
+        return
+    fi
+
+    if [ "-h" == "$1" -o "--help" == "$1" ]; then
+        cat <<EOF
+Usage: .. (<level> | <trailing-dirname>[/<sub-dir(s)>])
+Move up, a number of directories, or to a named directory.  Preserves
+OLDPWD, allowing for \`cd -\` to return to CWD
+
+Examples:
+All examples assume CWD = "/home/user/foo/bar/baz/bop"
+..         # Move up one directory, CWD = /home/user/foo/bar/baz
+.. 3       # Move up three directories, CWD = /home/user/foo
+.. user    # Move up to nearest directory named "user", CWD = /home/user
+.. foo/fum # Move up to "fum" sub-dir under "foo", CWD = /home/user/foo/fum
+EOF
+
+        return 0
+    fi
+
+    # Test for number or string
+    if [ "${1}" -eq "${1}" 2> /dev/null ]; then
+        # If number, build a string with that number of
+        # ".." directory entries, cd there, and return
+        LEVEL="$1"
+
+        # First check for the case of: a user enters a really
+        # big number as a shortcut to `cd /`.  Avoid the long
+        # wait required to build such a big string and just
+        # go to the root directory.
+        CURDIR_ARRAY=($(echo ${CURDIR} | tr '/' ' '))
+        NUM_CURDIR_PARTS=${#CURDIR_ARRAY[@]}
+        if [ "${LEVEL}" -ge "${NUM_CURDIR_PARTS}" ]; then
+            cd "/"
+            return 0
+        fi
+
+        CD_STR=""
+        for i in $(seq 1 ${LEVEL}); do
+            CD_STR="../${CD_STR}"
+        done
+        cd "${CD_STR}"
+        return 0
+    else  # $1 is a string
+        # If absolute path, just cd to it and return
+        if [ "/" == "${1:0:1}" ]; then
+            cd "$1"
+            return 0
+        fi
+
+        TRAILING="${1%%/*}"  # string before first '/'
+        NEW_SUB_DIR="${1#${TRAILING}}"  # strip "${TRAILING}" from front
+        if [ -n "${NEW_SUB_DIR}" ]; then
+            NEW_SUB_DIR="${NEW_SUB_DIR#/}"  # remove leading '/'
+        fi
+    fi
+
+    # Go up some number of levels.  Try to match the stirng input
+    # by the user as $1 to the last component in the full path.
+
+    local FULL_PATH=${CURDIR}
+    local THIS_DIR=""
+    while [ 1 ]; do
+        FULL_PATH=$(readlink -f ${FULL_PATH}/..)
+        THIS_DIR=$(basename ${FULL_PATH})
+
+        if [ "${THIS_DIR}" == "${TRAILING}" ]; then
+            if [ -n "${NEW_SUB_DIR}" ]; then
+                # If new sub-dir(s) exist, cd into
+                if [ -d "${FULL_PATH}/${NEW_SUB_DIR}" ]; then
+                    cd "${FULL_PATH}/${NEW_SUB_DIR}"
+                    break
+                else
+                    ERR_STR="dir \"${NEW_SUB_DIR}\" doesn't exist under ${FULL_PATH}"
+                    break
+                fi
+            fi
+            cd ${FULL_PATH}
+            break
+        elif [ "/" == "${THIS_DIR}" ]; then
+            ERR_STR="dir \"${TRAILING}\" not in path above cwd"
+            break
+        fi
+    done
+
+    # On error, go back to the original directory
+    if [ -n "${ERR_STR}" ]; then
+        cd "${CURDIR}"
+        echo "ERROR: ${ERR_STR}"
+        return 1
+    fi
+}
+
+
+##########################################################################################
+#                                       TERMINAL
+##########################################################################################
+
+# Display the number of lines/columns in the terminal window
+terminal_lines ()
+{
+    local LINES=$(stty size | cut -d ' ' -f1)
+    echo ${LINES}
+}
+
+
+terminal_columns ()
+{
+    local COLUMNS=$(stty size | cut -d ' ' -f2)
+    echo ${COLUMNS}
+}
+
+
+# Set the title for this terminal; assumes PROMPT_COMMAND is being used for the
+# Bash prompt.  Currently uses GNU screen specific escape sequence.
+# See: http://serverfault.com/questions/35085/set-xterm-putty-window-title-when-using-screen
+tt ()
+{
+    local TITLE=$@;
+    echo -en "\033]0;${TITLE}\007"
+}
+
+
+# Detect SSH session; display tty identifier
+tty ()
+{
+    if [ -n "${SSH_TTY}" ]; then
+        echo -n "SSH: "
+    fi
+    echo "$(/usr/bin/tty)"
+}
+
+
+##########################################################################################
+#                                       HISTORY
+##########################################################################################
+
+# Tail bash history
+ht ()
+{
+    local HIST_OPT=${1}
+    local RESERVE_LINES=3
+    if [ -z "${HIST_OPT}" ]; then
+        # Fill terminal height, leaving a few lines for prompt & new command
+        HIST_OPT=$(($(terminal_lines) - ${RESERVE_LINES}))
+    fi
+    history ${HIST_OPT}
+}
+
+
+# Delete bash history entry
+hd ()
+{
+    if [ "-h" == "$1" -o "--help" == "$1" ]; then
+        echo "Delete shell history entries"
+        echo "Usage: hd [<hist-num>] [<qty>]"
+        echo "          - no <hist-num> will delete single, most-recent entry"
+        echo "          - <qty> = \"-\" will delete all entries from <hist-num> to present"
+        echo "       hd -<offset>"
+        echo "          - delete single entry <offset> back from present"
+        echo "       hd <hist-begin>-<hist-end>"
+        echo "       hd <hist-begin> - <hist-end>"
+        echo "          - delete all entries betweeen begin & end"
+        return 0
+    fi
+
+    local HIST_NUM=$1
+    local REPEAT=0
+
+    if [ -n "${HIST_NUM}" ]; then
+        # Support first arg as a range, e.g., "XXX-YYY"
+        # Repeat is calculated from those two values
+        if [[ "${HIST_NUM}" =~ [0-9]+-[0-9]+ ]]; then
+            HIST_NUM1=$(echo ${HIST_NUM} | cut -d '-' -f 1)
+            HIST_NUM2=$(echo ${HIST_NUM} | cut -d '-' -f 2)
+            HIST_NUM=${HIST_NUM1}
+            REPEAT=$((${HIST_NUM2} - ${HIST_NUM} + 1))
+        elif [[ "${HIST_NUM}" =~ -[0-9]+ ]]; then
+            # Support single arg as an offset back from current position, e.g., "-X"
+            # Repeat is always 1
+            OFFSET=${HIST_NUM#-}
+            HIST_NUM=$((${HISTCMD} - ${OFFSET}))
+            REPEAT=1
+        fi
+    else
+        # No number specified, delete the most recent entry
+        HIST_NUM=$((${HISTCMD} - 1))
+    fi
+
+    # If repeat hasn't been specified check for 2nd arg; if not present, default to a value of 1.
+    if [ "0" -eq "${REPEAT}" ]; then
+        REPEAT=${2-1}
+    fi
+
+    # Support range as separate arguments, e.g, "XXX - YYY"
+    # Repeat is calculated from those two values
+    if [ "-" == "${REPEAT}" ]; then
+        if [ -n "${3}" ]; then
+            REPEAT=$((${3} - ${HIST_NUM} + 1))
+        else
+            # Not a range, delete from first argument to present
+            REPEAT=$((${HISTCMD}-${HIST_NUM}))
+        fi
+    fi
+
+    # Validate history number input
+    if [ "${HIST_NUM}" -eq "${HIST_NUM}" 2> /dev/null ]; then
+        # After deleting the first event, newer events shift down in number.
+        for r in $(seq 1 ${REPEAT}); do
+            echo "Delete history #${HIST_NUM}: \"$(fc -n -l ${HIST_NUM} ${HIST_NUM} | sed -e 's/^[ \t]*//')\""
+            history -d ${HIST_NUM}
+        done
+    else
+        echo "ERROR: invalid history entry specified"
+        return 1
+    fi
+}
+
+
+# Add a bash history entry
+hs ()
+{
+    if [ -z "$1" -o "$1" == "-h" ]; then
+        echo "Add entry to bash history"
+        echo "hs <string>"
+        return
+    fi
+    local CMD="$@"
+    history -s "${CMD}"
+}
+
+
+# Look for a string in the shell history
+hg ()
+{
+    if [ -z "$1" ]; then
+        echo "Grep history for a string"
+        echo "hg <string> [grep-option]"
+        return 1
+    fi
+
+    local STRING="$1"
+    local HG_OPT=${2-""}
+    history | grep ${HG_OPT} -e "${STRING}"
+}
+
+
+# History grep, case insensitive
+hgi ()
+{
+    if [ -z "$1" ]; then
+        echo "Grep history for a string, case insensitive"
+        echo "hgi <string>"
+        return 1
+    fi
+
+    hg "$1" "-i"
+}
+
+
+# Insert history entry into the primary X selection
+hi ()
+{
+    local NUM=$((${HISTCMD} - 1))
+
+    if [ -n "$1" ]; then
+        NUM="$1"
+    fi
+
+    local CMD=$(fc -n -l ${NUM} ${NUM})
+
+    echo "${CMD}" | tr -d '\n' | xsel -i
+}
+
+
+# Function run as PROMPT_COMMAND to add CWD & execution duration to history
+myhist ()
+{
+    echo ""
+    local h=$(history 1)
+    # ignore HISTTIMEFORMAT
+    h=${h# *] }
+    # ignore trailing dir/time comment, if present (e.g., from `!!`)
+    h=${h% ### *}
+    local c=${h%% *}  # get just the first token on the line
+    echo "command = \"$c\""
+    local d="${PWD}"
+    if [ "$c" == "cd" ]; then
+        d="${OLDPWD}"
+    elif [ "$c" == "pu" -o "$c" == "pushd" ]; then
+        d="${OLDPWD}"
+    elif [ "$c" == "po" -o "$c" == "popd" ]; then
+        d="${OLDPWD}"
+    fi
+
+    echo "$h ### $d, $(date +%s)"
+    #history -s "$h ### $d, $(date +%s)"
+}
+
+
+##########################################################################################
+#                                     PROCESSES
+##########################################################################################
+
+# Look for a string in the snapshot of processes
+pg ()
+{
+    if [ -z "$1" ]; then
+        echo "Grep process list for a string"
+        echo "pg <string> [grep-option]"
+        return 1
+    fi
+
+    local STRING="$1"
+    local PG_OPT=${2-""}
+    ps aux | grep -v "grep" | grep ${PG_OPT} -e "${STRING}"
+}
+
+
+# Process grep, case insensitive
+pgi ()
+{
+    if [ -z "$1" ]; then
+        echo "Grep process list for a string, case insensitive"
+        echo "pgi <string>"
+        return 1
+    fi
+
+    pg "$1" "-i"
+}
+
+
+# create a TAGS file suitable for use by Emacs
+et ()
+{
+    local SRC_DIR=${1-"."}
+    find $SRC_DIR -type f -name "*.cpp" -o -name "*.[cC]" | xargs etags -a
+}
+
+
+##########################################################################################
+#                                     PERFORCE
+##########################################################################################
+
+# Find all files not in the P4 repository
+notp4files ()
+{
+    local DIR="${1-.}"
+
+    if [ ! -d "${DIR}" ]; then
+        echo "Find all files not in the P4 repository"
+        echo "Usage: notp4files [<dir>]"
+        return 1
+    fi
+
+    find "${DIR}" -name build -type d -prune -o -type f -print0 | \
+        while read -d $'\0' f; do
+            [ -f "${f}" ] && p4 files "${f}" | grep -v "^//iveia"
+        done
+}
+
+
+# Move files between pending P4 changelists
+pend-mv ()
+{
+    local OLD="$1"
+    local NEW="$2"
+
+    if [ -z "${OLD}" -o -z "${NEW}" ]; then
+        echo "Move open files between two pending Perforce changelists"
+        echo "Usage: pend-mv <old-changelist> <new-changelist>"
+        echo "       <old-changelist> may be \"default\""
+        echo "       <new-changelist> may be \"default\" or \"new\""
+        return 1
+    fi
+
+    if [ "default" = "${OLD}" ]; then
+        local FILES="$(p4 change -o | \
+            grep -A 10000 -e '^Files:$' | \
+            grep -v '^Files:$' | \
+            sed -e '/^$/d;s@.*\(//.*\)#.*@\1@')"
+    else
+        local FILES="$(p4 describe -s ${OLD} | \
+            grep -A 10000 -e '^Affected files' | \
+            grep -v 'Affected files' | \
+            sed -e '/^$/d;s@.*\(//.*\)#.*@\1@')"
+    fi
+
+    if [ "new" = "${NEW}" ]; then
+        if [ -z ${P4CONFIG} ]; then
+            echo "ERROR: can't read P4 config file, giving up"
+            return 2
+        fi
+        . ${P4CONFIG}
+        # Create a new changeslist & capture resulting output
+        NEW_CL_RES=$(echo -e "Change:new\nClient:${P4CLIENT}\nUser:${P4USER}\nStatus:new\nDescription:\n\tNew changelist, created $(date)\nFiles:\n\n" | p4 change -i)
+        local RC=$?
+        if [ 0 -ne ${RC} ]; then
+            echo "ERROR: failed to create new changelist"
+            echo "       New changelist result = \"${NEW_CL_RES}\""
+            echo "       RC = ${RC}"
+            return 3
+        else
+            NEW=$(echo ${NEW_CL_RES} | sed -e 's/Change \([0-9]\+\) created./\1/')
+        fi
+    fi  # end -- create new changelist
+
+    for f in ${FILES}; do
+        p4 reopen -c ${NEW} ${f}
+    done
+}
+
+
+# Depot path for argument
+p4_depot ()
+{
+    # drop trailing slash if present; confuses p4 where
+    WHERE=$(echo $1 | sed -e 's@/$@@')
+    p4 where "${WHERE}" | cut -d ' ' -f1
+}
+
+
+# Local path for argument
+p4_local ()
+{
+    # drop trailing slash (and elipses if present)
+    # to allow use in local filesystem commands
+    local WHERE=$(echo $1 | sed -e 's@/\.*$@@')
+    p4 where "${WHERE}" | cut -d ' ' -f 3
+}
+
+
+# P4 changes output
+pco ()
+{
+    local DIR=${1-""}
+    local FILES=$(p4 change -o | grep -A 10000 -e "^Files:$" | grep -v "^Files:$")
+    if [ -n "${DIR}" ]; then
+        local DEPOT_DIR=$(p4_depot "${DIR}")
+        FILES=$(echo "${FILES}" | sed -e's@//@\n//@g' | grep "${DEPOT_DIR}")
+    fi
+
+    echo ${FILES} | sed -e 's/\(\/\/\)/\n\1/g;s/^\t//' | sed -e '/^$/d'
+
+}
+
+
+# Change directory to local mapping of P4 depot location
+pcd ()
+{
+    if [ -z "$1" -o  "-h" == "$1" -o "--help" == "$1" ]; then
+        echo "Change to local directory corresponding to P4 location"
+        echo "Usage: pcd <p4-depot-location"
+        return
+    fi
+
+    local DEPOT_LOC=${1-""}
+    local LOCAL_DIR=$(p4_local "${DEPOT_LOC}")
+    cd "${LOCAL_DIR}"
+}
+
+# Simple paging for P4 help
+ph ()
+{
+    local TOPIC="$1"
+    p4 help "${TOPIC}" | less -iFRSX
+}
+
+
+p4-pend ()
+{
+    local COLOR_VALUE
+    if [ -n "${GREP_COLOR}" ]; then
+        COLOR_VALUE="${GREP_COLOR}"
+    else
+        COLOR_VALUE="00;31"
+    fi
+    local COLOR=$(echo -e "\033[${COLOR_VALUE}m")
+    local NORMAL=$(echo -e "\033[0m")
+    . ${P4CONFIG}
+    local PEND_CLS=$(p4 changes -u ${P4USER} -s pending |awk '{print $2}')
+    for c in ${PEND_CLS}; do
+        p4 describe -s ${c} | \
+            sed -e "s/^Change [0-9]\+ by ${P4_USER}.*$/${COLOR}&${NORMAL}/"
+    done
+}
+
+
+##########################################################################################
+#                                     GIT
+##########################################################################################
+
+# Wrapper around: ivrepo forall -c '...'
+i4 ()
+{
+    local IVTOOLS_SCRIPT="${HOME}/scm/ivtools/tools.sh"
+
+    if [ "$(type ivrepo 2>1 > /dev/null; echo $?)" -eq "1" ]; then
+        if [ -f "${IVTOOLS_SCRIPT}" ]; then
+            . ${IVTOOLS_SCRIPT}
+        else
+            echo "ERROR: couldn't find IVTOOLS_SCRIPT"
+            return
+        fi
+    fi
+
+    ivrepo forall -c $*
+}
+
+
+##########################################################################################
+#                                       ANDROID
+##########################################################################################
+
+# Android Debug Bridge (ADB) connect
+adbc ()
+{
+    if [ -n "$1" ]; then
+        ADB_TARGET="$1"
+    else
+        ADB_TARGET="172.31.16.100"
+    fi
+    ADB_RUNNING=$(ps aux | grep -v grep | grep -e 'adb .* server')
+    if [ -z "${ADB_RUNNING}" ]; then
+        adb start-server
+    fi
+
+    adb disconnect
+    adb connect ${ADB_TARGET}
+}
+
+
+# List ADB-connected device
+adb_device ()
+{
+    echo $(adb devices | grep ":[0-9]\{1,\}" | sed -e 's@^\([0-9.]*\):.*@\1@')
+}
+
+
+# Begin monitoring ADB logcat output
+logcat ()
+{
+    if [ -z "$(adb_device)" ]; then
+        adbc
+    fi
+    adb logcat | coloredlogcat.py
+}
+
+
+##########################################################################################
+#                                     MISCELLANEOUS
+##########################################################################################
+
+# Save aliases
+save-alias ()
+{
+    local ALIAS_COUNT=0
+    local OLD_ALIAS_COUNT=0
+    local FORCE=0
+
+    if [ -n "$1" ]; then
+        case "$1" in
+            "h"|"-h"|"help"|"-help"|"--help")
+                echo "Save currently defined aliases to ${ALIASRC}"
+                echo "Usage: save-alias [--help] [--force]"
+                echo "       --help     show usage & exit"
+                echo "       --force    force alias file update"
+                return
+                ;;
+            "f"|"-f"|"force"|"--force")
+                FORCE=1
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
+
+    ALIAS_COUNT=$(alias | wc -l | cut -d ' ' -f1)
+    OLD_ALIAS_COUNT=0
+
+    if [ -f "${ALIASRC}" ]; then
+        OLD_ALIAS_COUNT=$(wc -l ${ALIASRC} | cut -d ' ' -f1)
+    else
+        touch ${ALIASRC}
+    fi
+
+    if [ "${FORCE}" -eq "1" -o "${ALIAS_COUNT}" -gt "${OLD_ALIAS_COUNT}" ]; then
+        rm -f $ALIASRC.old
+        mv $ALIASRC{,.old}
+        alias > $ALIASRC
+        echo "wrote ${ALIAS_COUNT} aliases to ${ALIASRC}"
+    else
+        echo "no update required for ${ALIASRC}"
+    fi
+}
+
+
+# Get a human-readable date given an epoch
+de ()
+{
+    local EPOCH="$1"
+    if [ -z ${EPOCH} ]; then
+        echo "Get a human-readable date given an epoch"
+        echo "Usage: de <epoch>"
+    else
+        date -d "1970-01-01 UTC +${EPOCH} seconds"
+    fi
+}
+
+
+# Remove RPMs containing a common string in the package name
+rpme ()
+{
+    local NAME="$1"
+    if [ -z ${NAME} ]; then
+        echo "Remove RPMs containing a common string in the package name"
+        echo "Usage: rpme <string>"
+        return 1
+    fi
+
+    local RPMS=$(rpm -qa | grep -e "${NAME}")
+    for r in ${RPMS}; do
+        echo "Uninstalling ${r}"
+    done
+    if [ ! -z "${RPMS}" ]; then
+        sudo rpm -e ${RPMS}
+    else
+        echo "No RPMs matching \"${NAME}\" found"
+    fi
+}
+
+
+# Build a source file index for cscope
+csfind ()
+{
+    local TOP_DIR=${1-"."}
+    find "${TOP_DIR}" -type f \
+        \( -name \*.[chCH] -o -name \*.[ch]pp -o -name \*.java \) \
+        -print | \
+        sort > "${TOP_DIR}/cscope.files"
+}
+
+
+# Copy output from given command to X selection
+c ()
+{
+    eval $* | xsel -i
+}
+
+
+# Paste output from X selection
+p ()
+{
+    xsel -o
+}
+
+
+# Count lines of code in a shell script
+shloc ()
+{
+    local SCRIPT=$1
+
+    if [ -z ${SCRIPT} ]; then
+        echo "Count lines of code in a shell script"
+        echo "Excludes:"
+        echo " - blank lines"
+        echo " - lines containign only comments"
+        echo " - lines containing only whihtespace characters"
+        echo " - lines containing only braces or semicolons"
+        echo " - lines containing only end of conditional/loop keywords"
+        echo "Usage: shloc <script>"
+        return 1
+    fi
+     sed \
+         -e '/^[ \t;]*$/d' \
+         -e '/^[ \t]*fi\|done\|esac$/d' \
+         -e'/^[ \t]*#.*$/d' \
+         -e '/^[ \t]*[{}][ \t]*/d' \
+         ${SCRIPT} | wc -l
+}
+
+
+# Speak a string on a Mac connected via network
+say ()
+{
+    SPEAK_HOST="mac"
+    STRING="${*}"
+
+    if [ -z "${STRING}" ]; then
+        RESULT=$?
+        CMD_NUM=$((HISTCMD-1))
+        LAST_COMMAND="$(fc -n -l ${CMD_NUM} ${CMD_NUM} | sed -e 's/^[ \t]*//')"
+        if [ "0" -eq "${RESULT}" ]; then
+            SPOKEN="Success"
+        else
+            SPOKEN="Failure"
+        fi
+        MESSAGE="Result   ${RESULT}"
+        TITLE="${LAST_COMMAND}"
+    else
+        SPOKEN="${STRING}"
+        MESSAGE="${STRING}"
+        TITLE="Message:"
+    fi
+
+    ssh ${SPEAK_HOST} "say ${SPOKEN} && growlnotify -m \"${MESSAGE}\" -t \"${TITLE}\""
+}
+
+
+# Automate starting minicom on default serial device
+mcm ()
+{
+    local MINIRC="/etc/minirc.dfl"
+    local SERIAL_PORT=$(cat ${MINIRC} | awk '/^pr port/ {print $3}')
+
+    if [ ! -c ${SERIAL_PORT} ]; then
+        echo "ERROR: default serial port (${SERIAL_PORT}) not present"
+        return 1
+    fi
+
+    minicom
+}
+
+
+pydep ()
+{
+    SCRIPT="$1"
+
+    if [ -z "${SCRIPT}" -o ! -f "${SCRIPT}" ]; then
+        echo "Generate dependency graph for a Python script"
+        echo "Usage: pydep <path/to/python/script.py>"
+        return 1
+    fi
+
+    local PY2DEPGRAPH=${HOME}/bin/py2depgraph.py
+    local DEPGRAPH2DOT=${HOME}/bin/depgraph2dot.py
+    local DEP_SVG="$(basename "${SCRIPT}" .py).svg"
+
+
+    python ${PY2DEPGRAPH} "${SCRIPT}" | \
+        python ${DEPGRAPH2DOT} | \
+        dot -T svg -o "${DEP_SVG}"
+
+    echo "Dependency Graph for ${SCRIPT}: ${DEP_SVG}"
+}
+
+
+# Get file from another machine, copy to target media, unmount media
+getfile ()
+{
+    local START=$(date +%s)
+    local UNMOUNT=1
+    if [ "$1" == "-n" ]; then
+        UNMOUNT=0
+        shift
+    fi
+
+    ROOT_BUILD_SOURCE="$1"
+    ROOT_DEST="$2"
+
+    if [ -z "${ROOT_BUILD_SOURCE}" -o -z "${ROOT_DEST}" ]; then
+        echo "Get file from remote build host via SSH & install on target"
+        echo "Usage: getroot [opts] <remote-source> <target-media>"
+        echo "Options:"
+        echo "   -n    don't unmount media containing target filestem after install"
+        echo "Arguments:"
+        echo "   <remote-source>      SSH identifier of the form:"
+        echo "                           <user>@<host>:/path/to/file"
+        echo "   <target-media>       Install path for file; by default,"
+        echo "                           unmounted following installation"
+        return 1
+    fi
+
+    local FNAME="$(basename ${ROOT_BUILD_SOURCE})"
+
+    # If copying to ejectable media, first store to local disk,
+    # otherwise, just store to the final location.
+    local LOCAL_FILE
+    if [[ "${ROOT_DEST}" =~ "/media" ]]; then
+        LOCAL_FILE="${HOME}/tmp/${FNAME}"
+    else
+        LOCAL_FILE="${ROOT_DEST}"
+        UNMOUNT=0
+    fi
+
+
+    scp "${ROOT_BUILD_SOURCE}" "${LOCAL_FILE}"
+
+    if [ "${ROOT_DEST}" != "${LOCAL_FILE}" ]; then
+        echo "${LOCAL_FILE} -> ${ROOT_DEST}"
+        cp "${LOCAL_FILE}" "${ROOT_DEST}"
+        sync
+    else
+        # Confirmation of local file location
+        if [ -d "${ROOT_DEST}" ]; then
+            ROOT_DEST="${ROOT_DEST}/${FNAME}"
+        fi
+        echo "Local file: ${ROOT_DEST}"
+    fi
+
+    # Check unount flag & verify root image was successfully copied
+    if [ "${UNMOUNT}" == "1" -a -e "${ROOT_DEST}" ]; then
+        # Get device containing file
+        local FS_DEV=$(df "${ROOT_DEST}" | \
+            awk 'NR == 2 {print $1}' | \
+            sed -e 's@\(.*\)[0-9]@\1@')
+        um ${FS_DEV}
+    fi
+
+    local END=$(date +%s)
+
+    echo "Elapsed: $((END - START)) seconds"
+
+}
+
+
+# Tail, follow a file
+tf ()
+{
+    FNAME="$1"
+
+    if [ -z "${FNAME}" -o ! -f "${FNAME}" ]; then
+        echo "Tail a file, following file growth"
+        echo "Usage: tf <path/to/file>"
+        return 1
+    fi
+
+    sudo tail -n $(terminal_lines) -f ${FNAME}
+}
+

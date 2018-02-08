@@ -1,0 +1,6 @@
+#!/bin/bash
+if [ -x /sbin/ifconfig ]; then
+    ifconfig | grep -A 2 '^eth0' | awk '/inet addr/ {print $2}' | cut -d ':' -f2
+else
+    ipconfig | awk '/IPv4 Address/ {print $NF;exit}'
+fi

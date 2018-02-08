@@ -1,0 +1,54 @@
+verbose on
+defscrollback 99999
+defutf8 on
+termcapinfo xterm ti@:te@
+hardstatus alwayslastline
+
+backtick 1 60 60 $HOME/bin/my_ip
+
+# Hardware status line -- black text on light background, 
+#                         highlight current buffer with blue text
+#hardstatus string '%{= }[ %H ][%= %{= k}%?%-Lw%?%{=b R}(%{= b}%n*%f %t%?(%u)%?%{=b R})%{= k}%?%+Lw%?%?%= ][ %{= k}%D %m/%d %c ]%{W}'
+# %{= } -- change current attributes, clear all previous styles
+# [ %H %1 ] -- [ <hostname> <my_ip output> ]
+# [%= %{= k} -- opening-square-bracket, text color black
+# %?% -- ??? conditional, ???
+# -Lw%? -- ??? conditionally removes upcoming style ???
+# %{=b R} -- bold, bright red, applies to upcoming, opening paren
+# (%{= b}%n*%f %t%?(%u)%? -- blue text
+#     "(<win-num>*<???> <win-title> <???>)",
+# %{=b R}) -- closing paren in bold, bright red
+# %{= k} -- black text
+# %?%+Lw%?%?%= -- ??? centers buffer list in enclosing square brackets ???
+#
+# [ %{= k}%D %m/%d %c ] -- enclosed in brackets, text color black, 
+#     "<weekday-name> <month-number>/<day-number> <24-hr-current-time>"
+# %{w} -- white, 'W' for bright/bold
+# See "Screen User's Manual: Section 12. String Escapes", http://www.delorie.com/gnu/docs/screen/screen_138.html
+#hardstatus string '%{= }[ %H ][%= %{= w}%?%-Lw%?%{=b Y}(%{= g}%n*%f %t%?(%u)%?%{=b Y})%{= w}%?%+Lw%?%?%= ][ %{= w}%D %m/%d %c ]%{K}'
+#hardstatus string '%{= w}[ %H %1` ][%= %{= w}%?%-Lw%?%{=b Y}(%{= G}%n*%f %t%?(%u)%?%{=b Y})%{= w}%?%+Lw%?%?%= %{= }][ %{= w}%D %d-%M %c ]%{K}'
+hardstatus string '%{= w}[ %H %1` ][%= %{= w}%?%-Lw%?%{= }(%n*%f %t%?%?)%{= w}%?%+Lw%?%?%= %{= }][ %{= w}%D %d-%M %c ]%{K}'
+
+# Shell window title
+shelltitle "$ |bash"
+
+startup_message off
+vbell off
+msgwait 1
+ignorecase
+
+# user supplied key bindings
+bind j focus down
+bind k focus up
+bind g focus top
+bind G focus bottom
+
+# re-bind escape key to Ctrl-X
+escape "^x^x"
+
+#
+# ??? Missing something fundamental here, this should work - I think ???
+#
+# line below synchronizes screen selection in copy mode with X-Windows via the '>' key
+#bindkey -m > eval writebuf 'exec /bin/sh -c "xsel -i -p < /tmp/screen-exchange"' 'exec /bin/sh -c "killall xsel"'
+
