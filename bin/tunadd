@@ -1,0 +1,20 @@
+#!/bin/sh
+
+SSH="/usr/bin/ssh -f -N -T tun_"
+PIDOF="/sbin/pidof"
+
+tunadd () {
+    echo "$SSH$1"
+    $SSH$1
+}
+
+SSHPIDS="$($PIDOF ssh)"
+
+for t in "$@"; do
+    TUN='not found'
+    for p in $SSHPIDS; do
+	    cmd="$(/bin/ps -p $p | grep -v "^[ \t]\+PID.*$")"
+	    [ "$cmd" = "$SSH$t"  ] && TUN='found'
+    done
+    [ "$TUN" = 'not found' ] && tunadd $t
+done

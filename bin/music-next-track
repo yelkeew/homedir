@@ -1,0 +1,6 @@
+#!/bin/bash
+
+. $HOME/bin/get-synergy-client
+CLIENT=$(get-synergy-client)
+
+ssh -i  ~/.ssh/nteligen007_id_rsa dw@${CLIENT} "/Users/dw/bin/itunes-next-track"

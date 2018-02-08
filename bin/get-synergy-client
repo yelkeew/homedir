@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Get synergy client IP address
+get-synergy-client ()
+{
+    SYNERGY_PORT=24800
+    CLIENT=$(netstat -ntup 2>/dev/null | grep ":${SYNERGY_PORT}" | awk '/ESTABLISHED/{print $5}' | cut -d ':' -f1)
+    echo ${CLIENT}
+}

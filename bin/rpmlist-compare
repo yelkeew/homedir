@@ -1,0 +1,63 @@
+#!/bin/bash
+
+REPO_SERVER="aftyum"
+REPO_DIR="/opt/yum"
+
+CLIENT="aftbuild-64"
+
+declare -A REPO_LISTS
+INSTALLED_LIST=""
+
+list_server_contents ()
+{
+    echo "Listing Yum server contents..."
+
+    REPOSITORIES=$(ssh ${REPO_SERVER} "find ${REPO_DIR} -mindepth 1 -maxdepth 1 -exec basename {} \\;")
+    local REPO_TMP_FILE
+
+    for r in ${REPOSITORIES}; do
+        echo "   ${r}"
+        REPO_TMP_FILE="/tmp/${REPO_SERVER}_${r}_contents.txt"
+        rm -rf ${REPO_TMP_FILE}
+        ssh ${REPO_SERVER} "find ${REPO_DIR}/${r} -type f -name '*.rpm' -exec basename {} ".rpm" \\;" | \
+            sort > ${REPO_TMP_FILE}
+        REPO_LISTS["${r}"]="$(cat ${REPO_TMP_FILE})"
+    done
+}
+
+list_client_packages ()
+{
+    echo "Listing client's installed packages..."
+    local INSTALL_TMP_FILE="/tmp/${CLIENT}_installed.txt"
+    ssh ${CLIENT} "rpm -qa" | sort > ${INSTALL_TMP_FILE}
+    INSTALLED_LIST="$(cat ${INSTALL_TMP_FILE})"
+}
+
+list_server_contents
+list_client_packages
+
+echo "Checking installed against available..."
+
+for p in ${INSTALLED_LIST}; do
+    FOUND=0
+    #echo "checking $p"
+    for r in "${!REPO_LISTS[@]}"; do
+        #echo "   repo $r"
+        LIST="${REPO_LISTS[${r}]}"
+        for e in ${LIST}; do
+            if [[ "$(basename ${e})" == "${p}" ]]; then
+                printf "*** %-40s %s\n" ${p} ${r}
+                FOUND=1
+                break
+            fi
+        done
+        if [ 1 -eq ${FOUND} ]; then
+            break
+        fi
+    done
+
+    if [ 0 -eq ${FOUND} ]; then
+        printf "!!!!!!!!!! NOT FOUND: %s\n" ${p}
+    fi
+
+done

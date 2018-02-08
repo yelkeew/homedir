@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Get synergy client IP address
+. $HOME/bin/get-synergy-client
+CLIENT=$(get-synergy-client)
+
+#TITLE="Music Control"
+#SYNERGY_PORT=24800
+#notify-send -t 2 "${TITLE}" "Port: ${SYNERGY_PORT}\nClient: ${CLIENT}"
+
+# Run the music play/pause script on the client
+ssh -i  ~/.ssh/nteligen007_id_rsa dw@${CLIENT} "/Users/dw/bin/itunes-toggle-play-pause"

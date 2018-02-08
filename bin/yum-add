@@ -1,0 +1,72 @@
+#!/bin/bash
+
+SELF=${0##*/}
+SERVER="iv-vm-pub"
+SERVER_TMP_DIR="/tmp"
+
+YUM_BASE_DIR="/var/www/yum"
+DEFAULT_PKG_DIR="iveia"
+YUM_PKG_DIR="${YUM_BASE_DIR}/iveia"
+
+CREATE_REPO="/usr/bin/createrepo -v"
+
+function ssh_mv_cmd ()
+{
+    local FNAME="$1"
+    local TMP=${SERVER_TMP_DIR}/${FNAME}
+    local YUM_FILE=${YUM_PKG_DIR}/${FNAME}
+    echo "sudo mv ${TMP} ${YUM_FILE} && sudo chown root:root ${YUM_FILE}"
+}
+
+function usage ()
+{
+    echo "Usage: ${SELF} [options] <RPMs>"
+    echo "Options:"
+    echo "         -s server       Yum server name/IP, default=${SERVER}"
+    echo "         -t tmp-dir      temporary directory on server; default = ${SERVER_TMP_DIR}"
+    echo "         -p pkg-dir      Yum package dir; default = <yum-dir>/${DEFAULT_PKG_DIR}"
+    echo "         -y yum-dir      Yum directory on server; default = ${YUM_BASE_DIR}"
+}
+
+
+# process command line arguments
+while getopts "hp:s:t:y:" OPTION; do
+    case $OPTION in
+        h)
+            usage
+            exit 0
+            ;;
+        p)
+            YUM_PKG_DIR="${YUM_BASE_DIR}/${OPTARG}"
+            ;;
+        s)
+            SERVER="${OPTARG}"
+            ;;
+        t)
+            SERVER_TMP_DIR="${OPTARG}"
+            ;;
+        y)
+            YUM_BASE_DIR="${OPTARG}"
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((${OPTIND}-1))
+FILES="$@"
+
+if [ -z "${FILES}" ]; then
+    usage
+    exit 0
+fi
+
+for f in ${FILES}; do
+    echo "Transferring $f -> ${SERVER}"
+    scp $f ${SERVER}:${SERVER_TMP_DIR}
+    ssh ${SERVER} "`ssh_mv_cmd $(basename $f)`"
+done
+
+ssh ${SERVER} "sudo ${CREATE_REPO} ${YUM_BASE_DIR}"

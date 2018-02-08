@@ -1,0 +1,22 @@
+#!/bin/bash
+
+echo "ediff $LOCAL $REMOTE"
+
+SERVER_SOCKET=""
+if [ -e "${HOME}/emacs/server-socket-dir/server" ]; then
+    SERVER_SOCKET="${HOME}/emacs/server-socket-dir/server"
+else
+    if [ -e "/tmp/emacs/$(id -u)/server" ]; then
+        SERVER_SOCKET="${HOME}/emacs/server-socket-dir/socket"
+    else
+        echo "ERROR: Can't find Emacs server socket.  Is Emacs running?"
+        exit 1
+    fi
+fi
+
+SERVER_ARG=""
+if [ -n "${SERVER_SOCKET}" ]; then
+    SERVER_ARG="-s ${SERVER_SOCKET}"
+fi
+
+emacsclient ${SERVER_ARG} --eval "(ediff-files \"$LOCAL\" \"$REMOTE\")"

@@ -1,0 +1,46 @@
+#!/bin/bash
+
+#
+# Simple backup script to sync VM home dir files to a shared
+# directory on the Mac
+#
+# Author: Dan Weekley <weekley@pobox.com>
+#  Date:  01/20/2011
+#
+
+# Don't perform path expansion on strings with wildcards
+set -o noglob
+
+RSYNC='/usr/bin/rsync'
+LOG="/tmp/rsync-backup__$(date +%F__%H%M%S).log"
+
+SRC="${HOME}"
+SHARED_DIR="/mnt/hgfs/dw"
+DEST="${SHARED_DIR}/bak"
+
+RSYNC_OPTS="-av -l --no-p --no-g --chmod=ugo=rwX --delete --delete-excluded"
+
+# Files/Directories to exclude
+EXCLUDED=(
+    '**/build*/**'
+    '**/rpm/BUILD/**'
+    '**/ltib-*/**'
+    '**/.Trash/**'
+    '**/tmp/**' )
+
+
+RSYNC_EXCLUDE=""
+for e in ${EXCLUDED[*]}; do
+    RSYNC_EXCLUDE="${RSYNC_EXCLUDE} --exclude '${e}'"
+done
+
+
+RSYNC_EXE="${RSYNC} ${RSYNC_OPTS} ${RSYNC_EXCLUDE} ${SRC} ${DEST}"
+echo "${RSYNC_EXE} &> ${LOG}"
+
+### Debug
+#${RSYNC} -n ${RSYNC_OPTS} ${RSYNC_EXCLUDE} ${SRC} ${DEST}
+
+${RSYNC_EXE} &> ${LOG}
+
+

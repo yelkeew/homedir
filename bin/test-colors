@@ -1,0 +1,35 @@
+#!/bin/bash
+
+BLACK=0
+RED=1
+GREEN=2
+YELLOW=3
+BLUE=4
+MAGENTA=5
+CYAN=6
+WHITE=7
+
+COLORS=("black" "red" "green" "yellow" "blue" "magenta" "cyan" "white")
+
+
+# plain background, colored foreground
+printf "\033[0;37m%-8s\033[0;0m " "plain"
+for f in $(seq ${BLACK} ${WHITE}); do
+    FG=$((30+f))
+    printf "\033[0;${FG}m%-8s\033[0;0m " ${COLORS[$f]}
+done
+printf "\n"
+
+# colored background, colored foreground
+for b in $(seq ${BLACK} ${WHITE}); do
+    BG=$((40+b))
+    #echo "background = $BG"
+    printf "\033[${BG};37m%-8s\033[0;0m " ${COLORS[$b]}
+    for f in $(seq ${BLACK} ${WHITE}); do
+        FG=$((30+f))
+        printf "\033[${BG};${FG}m%-8s\033[0;0m " ${COLORS[$f]}
+        #printf "%s on %s\n" ${COLORS[$f]} ${COLORS[$b]}
+    done
+    printf "\n"
+done
+

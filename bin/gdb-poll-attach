@@ -1,0 +1,17 @@
+#!/bin/bash
+
+PROCESSNAME=$1
+
+echo "Waiting to attach to $PROCESSNAME"
+
+PROCESS_BASENAME=$(basename ${PROCESSNAME})
+
+pid=""
+
+while [ -z "${pid}" ]; do
+    pid=$(ps -ef | grep ${PROCESS_BASENAME} | grep -v grep | grep -v $0 | awk '{print $2}')
+done
+
+echo "${PROCESSNAME} started with pid: ${pid}.  Attaching."
+
+gdb ${PROCESSNAME} --pid=${pid}

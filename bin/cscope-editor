@@ -1,0 +1,7 @@
+#!/bin/bash
+
+#
+# A simple script to allow cscope to interface with my Emacs configuration
+#
+
+python ${HOME}/bin/ecn.py $*

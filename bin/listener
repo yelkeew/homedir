@@ -1,0 +1,14 @@
+#!/bin/bash
+
+PORT=12345
+
+read_data()
+{
+    nc -l ${PORT}
+}
+
+
+while true; do
+    DATA="$(read_data)"
+    notify-send -t 3000 "Message" "${DATA}"
+done

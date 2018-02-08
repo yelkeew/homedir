@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# dw 06/12/2009 -- changed PIDOF & PS for RHEL5.x
+#PIDOF="/bin/pidof"
+PIDOF="/sbin/pidof"
+#PS="/usr/bin/ps"
+PS="/bin/ps"
+KILL="/usr/bin/kill"
+
+SSH_PIDS=$(${PIDOF} ssh)
+
+for t in "$@"; do
+    # If the argument is "all", then kill all SSH tunnels named "tun_*".
+    # Otherwise, kill the specific tunnel(s) requested, "tun_$[1-n]"
+    if [ "all" = "${t}" ]; then
+        TNL=""
+    else
+        TNL="_${t}"
+    fi
+
+    for p in ${SSH_PIDS}; do
+        CUR_TNL="$(${PS} -Fp ${p} | grep tun${TNL} | sed -e 's/.*ssh.*tun_\(.*\)/\1/')"
+    	if [[ -n "${CUR_TNL}" ]]; then
+            echo "kill -1 ${p}, ${CUR_TNL}"
+            ${KILL} -1 ${p}
+    	fi
+    done
+done

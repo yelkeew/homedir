@@ -1,0 +1,42 @@
+#!/bin/bash
+#
+# Wrapper script for building RPMs
+#
+
+SELF=${0##*/}
+
+RPM_DIR=${HOME}/rpm
+
+RPMBUILD=/usr/bin/rpmbuild
+
+function usage ()
+{
+    echo "Usage: ${SELF} <source> <spec>"
+}
+
+
+function mkrpm ()
+{
+    SOURCE_FILE="$1"
+    SPEC_FILE="$2"
+
+    # Set up the rpm building directory heirarchy
+    mkdir -p ${RPM_DIR}/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+    cp -v ${SPEC_FILE} ${RPM_DIR}/SPECS
+    cp -v ${SOURCE_FILE} ${RPM_DIR}/SOURCES
+    ${RPMBUILD} -ba --define "_topdir ${RPM_DIR}" ${RPM_DIR}/SPECS/`basename ${SPEC_FILE}`
+}
+
+
+ARG1=${1-"-h"}
+ARG2=${2-""}
+
+case ${ARG1} in
+    "-h" )
+        usage
+        exit 0
+        ;;
+    * )
+        mkrpm ${ARG1} ${ARG2}
+        ;;
+esac

@@ -1,0 +1,70 @@
+#!/bin/bash
+
+#
+# Usage: color-make [-s PATTERN] MAKE_OPTIONS
+#
+#  -s PATTERN   Display the lines containing PATTERN in green
+
+#
+# Originally from: http://agafix.org/colorizing-the-output-of-make/
+#
+
+REAL_MAKE="/usr/bin/make"
+
+_ESC="$(echo -en '\e')"
+OFF="${_ESC}[00;00m"
+
+# Colors copied from ~/.dircolors
+# Attribute codes:
+# 00=none 01=bold 04=underscore 05=blink 07=reverse 08=concealed
+# Text color codes:
+# 30=black 31=red 32=green 33=yellow 34=blue 35=magenta 36=cyan 37=white
+# Background color codes:
+# 40=black 41=red 42=green 43=yellow 44=blue 45=magenta 46=cyan 47=white
+BOLDRED="${_ESC}[31;01m"
+BOLDGREEN="${_ESC}[32;01m"
+BOLDYELLOW="${_ESC}[33;01m"
+BOLDBLUE="${_ESC}[34;01m"
+BOLDMAGENTA="${_ESC}[35;01m"
+BOLDCYAN="${_ESC}[36;01m"
+BOLDWHITE="${_ESC}[37;01m"
+
+BLACK="${_ESC}[00;30m"
+RED="${_ESC}[00;31m"
+GREEN="${_ESC}[00;32m"
+YELLOW="${_ESC}[00;33m"
+BLUE="${_ESC}[00;34m"
+MAGENTA="${_ESC}[00;35m"
+CYAN="${_ESC}[00;36m"
+WHITE="${_ESC}[00;37m"
+
+#
+# In general:
+# - RED:    errors
+# - YELLOW: warnings
+# - BLUE:   top-level make output
+# - GREEN:  pattern matching
+#
+# A note on `sed' expressions:
+#    ORDER IS IMPORTANT!  It appears that once an expression matches,
+#    all following expressions are skipped.
+#
+
+if [ "${1}" == "-s" ] && [ ! -z "${2}" ]; then
+    pattern="${2}"
+    shift 2
+else
+    pattern="a text string we should never actually see"
+fi
+
+# exec ${REAL_MAKE} "$@" 2>&1 | sed \
+#     -e "s/\(^make.*\)/${BLUE}\1${OFF}/" \
+#     -e "s/\(.* [Ee]rror:.*\)/${RED}\1${OFF}/" \
+#     -e "s/\(.*${pattern}.*\)/${GREEN}\1${OFF}/"
+
+exec ${REAL_MAKE} "$@" 2>&1 | sed \
+    -e "s/\(.* No rule .*\)/${BOLDRED}\1${OFF}/" \
+    -e "s/\(.* [Ee]rror:.*\)/${BOLDRED}\1${OFF}/" \
+    -e "s/\(.* [Ww]arning:.*\)/${BOLDYELLOW}\1${OFF}/" \
+    -e "s/\(.*${pattern}.*\)/${BOLDGREEN}\1${OFF}/" \
+    -e "s/\(^make:.*\)/${BLUE}\1${OFF}/"
