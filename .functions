@@ -117,6 +117,30 @@ ff ()
     cat ${RESULTS}
 }
 
+b ()
+{
+    if [ -z "$1" -o -z "$2" ]; then
+        echo "Run command on file/directory/link from previous find result"
+        echo "Variable substitution for \"_F\" in command with find result"
+        echo "Usage: b <result-num> <cmd [arg(s)]>"
+        return 0
+    fi
+
+    local RESULTS="${HOME}/tmp/find-results.txt"
+    local LINENO="$1"
+    shift
+    local CMD=$*
+    local FILE=$(sed "${LINENO}q;d" ${RESULTS} | cut -f 2)
+    if echo "${CMD}" | grep -q "_F" ; then
+        # Use '@' symbol for sed separator as find result may contain '/'
+        CMD=$(echo $CMD | sed -e "s@_F@${FILE}@g")
+    else
+        CMD="${CMD} ${FILE}"
+    fi
+    echo ${CMD}
+    eval ${CMD}
+}
+
 
 fl ()
 {
