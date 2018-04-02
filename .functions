@@ -139,6 +139,9 @@ b ()
     fi
     echo ${CMD}
     eval ${CMD}
+    # Fix up the history
+    hd --quiet -1
+    history -s ${CMD}
 }
 
 fl ()
@@ -656,6 +659,12 @@ hd ()
         return 0
     fi
 
+    local QUIET_HISTORY_DELETE=""
+    if [ "-q" == "$1" -o "--quiet" == "$1" ]; then
+        QUIET_HISTORY_DELETE=1
+        shift
+    fi
+
     local HIST_NUM=$1
     local REPEAT=0
 
@@ -699,7 +708,9 @@ hd ()
     if [ "${HIST_NUM}" -eq "${HIST_NUM}" 2> /dev/null ]; then
         # After deleting the first event, newer events shift down in number.
         for r in $(seq 1 ${REPEAT}); do
-            echo "Delete history #${HIST_NUM}: \"$(fc -n -l ${HIST_NUM} ${HIST_NUM} | sed -e 's/^[ \t]*//')\""
+            if [ -z "${QUIET_HISTORY_DELETE}" ]; then
+                echo "Delete history #${HIST_NUM}: \"$(fc -n -l ${HIST_NUM} ${HIST_NUM} | sed -e 's/^[ \t]*//')\""
+            fi
             history -d ${HIST_NUM}
         done
     else
