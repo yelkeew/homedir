@@ -213,9 +213,6 @@ fi
 ### # Load xmodmap to configure keyboard customizations
 ### xmodmap ~/.xmodmap
 
-# Set DISPLAY variable for WSL shell
-export DISPLAY=":0"
-
 # Set hard/soft limits on coredumps to unlimited
 ulimit -c unlimited
 
@@ -271,6 +268,10 @@ if [ -z "${SSH_TTY}" ]; then
 
         screen 
     fi
+else
+
+    # This is an SSH session, so make sure DISPLAY is set up correctly
+    export DISPLAY="$(echo $SSH_CLIENT | awk '{print $1}'):0.0"
 
 fi  # SSH_TTY
 
