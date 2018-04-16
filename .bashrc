@@ -153,7 +153,7 @@ export HISTTIMEFORMAT="[ %a, %m/%d/%Y %H:%M:%S ] "
 #  - exit from Bash
 export HISTIGNORE="&:\?:hd*:ht:t:d:m:-:exit"
 
-MY_EDITOR="${HOME}/bin/ecn"
+MY_EDITOR="${HOME}/bin/edit"
 
 # Set the visual editor, required by svn & p4
 export VISUAL="${MY_EDITOR}"
