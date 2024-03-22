@@ -187,7 +187,7 @@ fd ()
 # Find file & grep
 ffg ()
 {
-    if [ $# -lt 3 ]; then
+    if [[ $# -lt 3 ]]; then
         echo "Grep files matching a regex in the specified directory"
         echo "Usage: ffg [<grep-opts>] <dir> <fname-regex> <grep-regex>"
         return 1
@@ -203,12 +203,16 @@ ffg ()
         local GREP="grep -Hn"
         local RESULTS="${HOME}/tmp/find-results.txt"
 
-        if [ -n "$FF_GREP_OPTS" ]; then
+        if [[ -n "${FF_GREP_OPTS}" ]]; then
             GREP="${GREP} ${FF_GREP_OPTS}"
         fi
         rm -rf ${RESULTS} ${RESULTS}.tmp
         find "${DIR}" -type f -name "${FILENAME}" -print0 | \
             while read -d $'\0' f; do ${GREP} -e "${REGEX}" "${f}" >> ${RESULTS}.tmp; done
+        if ! [[ -f ${RESULTS}.tmp ]]; then
+            # No results found
+            return 1
+        fi
         sed -i -e '/Binary file .* matches/d' ${RESULTS}.tmp
         nl ${RESULTS}.tmp > ${RESULTS}
         rm -rf ${RESULTS}.tmp
@@ -742,9 +746,8 @@ hg ()
         return 1
     fi
 
-    local STRING="$1"
-    local HG_OPT=${2-""}
-    history | grep ${HG_OPT} -e "${STRING}"
+    local STRING="$@"
+    history | grep -e "${STRING}"
 }
 
 
@@ -1010,6 +1013,10 @@ i4 ()
     ivrepo forall -c $*
 }
 
+gt ()
+{
+    echo "$1" | sed -e "s|\(http[s]\?://\)\(.*\)|\1$GIT_TOKEN_NAME:$GIT_TOKEN_VALUE@\2|"
+}
 
 ##########################################################################################
 #                                       ANDROID
@@ -1142,20 +1149,6 @@ csfind ()
         \( -name \*.[chCH] -o -name \*.[ch]pp -o -name \*.java \) \
         -print | \
         sort > "${TOP_DIR}/cscope.files"
-}
-
-
-# Copy output from given command to X selection
-c ()
-{
-    eval $* | xsel -i
-}
-
-
-# Paste output from X selection
-p ()
-{
-    xsel -o
 }
 
 
@@ -1331,4 +1324,3 @@ tf ()
 
     sudo tail -n $(terminal_lines) -f ${FNAME}
 }
-
